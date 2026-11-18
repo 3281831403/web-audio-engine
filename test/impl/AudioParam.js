@@ -195,6 +195,17 @@ describe("AudioParam", () => {
       ]);
     });
 
+    it("linearRampToValueAtTime - first event starts from the current value", () => {
+      const param = new AudioParam(context, { rate: CONTROL_RATE, defaultValue: 1 });
+
+      param.setValue(0.25);
+      param.linearRampToValueAtTime(1, 1);
+
+      assert.deepEqual(param.getTimeline().map(pluck), [
+        [ LINEAR_RAMP_TO_VALUE_AT_TIME     ,     fr(0),   fr(1),       0.25,      1.0 ]
+      ]);
+    });
+
     it("exponentialRampToValueAtTime", () => {
       const param = new AudioParam(context, { rate: CONTROL_RATE, defaultValue: 0 });
 
@@ -209,6 +220,28 @@ describe("AudioParam", () => {
         [ EXPONENTIAL_RAMP_TO_VALUE_AT_TIME,     fr(1),   fr(2),        0.1,      0.2 ],
         [ SET_VALUE_AT_TIME                ,     fr(3),   fr(3),        0.3,      0.3 ],
         [ EXPONENTIAL_RAMP_TO_VALUE_AT_TIME,     fr(3),   fr(4),        0.3,      0.4 ]
+      ]);
+    });
+
+    it("exponentialRampToValueAtTime - first event starts from the current value", () => {
+      const param = new AudioParam(context, { rate: CONTROL_RATE, defaultValue: 1 });
+
+      param.setValue(0.01);
+      param.exponentialRampToValueAtTime(1, 1);
+
+      assert.deepEqual(param.getTimeline().map(pluck), [
+        [ EXPONENTIAL_RAMP_TO_VALUE_AT_TIME,     fr(0),   fr(1),       0.01,      1.0 ]
+      ]);
+    });
+
+    it("exponentialRampToValueAtTime - first event clamps the current value to 1e-6", () => {
+      const param = new AudioParam(context, { rate: CONTROL_RATE, defaultValue: 1 });
+
+      param.setValue(0);
+      param.exponentialRampToValueAtTime(1, 1);
+
+      assert.deepEqual(param.getTimeline().map(pluck), [
+        [ EXPONENTIAL_RAMP_TO_VALUE_AT_TIME,     fr(0),   fr(1),       1e-6,      1.0 ]
       ]);
     });
 
@@ -252,6 +285,20 @@ describe("AudioParam", () => {
         [ SET_VALUE_AT_TIME                ,     fr(2),   fr(3),       0.2 ,     0.2  ],
         [ SET_VALUE_CURVE_AT_TIME          ,     fr(3),   fr(4),   f32(0.4), f32(0.6) ],
         [ LINEAR_RAMP_TO_VALUE_AT_TIME     ,     fr(4),   fr(5),   f32(0.6),     1.0  ]
+      ]);
+    });
+
+    it("setValueCurveAtTime - a following ramp starts at the end of the curve", () => {
+      const param = new AudioParam(context, { rate: CONTROL_RATE, defaultValue: 0 });
+      const curve = new Float32Array([ 0.1, 0.2, 0.3 ]);
+      const f32 = Math.fround;
+
+      param.linearRampToValueAtTime(1.0, 5);
+      param.setValueCurveAtTime(curve, 0, 1);
+
+      assert.deepEqual(param.getTimeline().map(pluck), [
+        [ SET_VALUE_CURVE_AT_TIME          ,     fr(0),   fr(1),  f32(0.1), f32(0.3) ],
+        [ LINEAR_RAMP_TO_VALUE_AT_TIME     ,     fr(1),   fr(5),  f32(0.3),     1.0 ]
       ]);
     });
 

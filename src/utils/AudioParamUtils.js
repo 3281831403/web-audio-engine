@@ -19,30 +19,45 @@ function computeValueAtTime(timeline, time, defaultValue) {
     const e1 = timeline[i + 1];
     const t0 = Math.min(time, e1 ? e1.time : time);
 
-    if (time < e0.time) {
-      break;
+    // when the first event is a ramp, it starts from the current value at
+    // the scheduling time and reaches its value at the event time
+    if (i === 0 && (e0.type === LINEAR_RAMP_TO_VALUE_AT_TIME || e0.type === EXPONENTIAL_RAMP_TO_VALUE_AT_TIME)) {
+      if (e0.type === LINEAR_RAMP_TO_VALUE_AT_TIME) {
+        value = getLinearRampToValueAtTime(time, defaultValue, e0.args[0], 0, e0.args[1]);
+      } else {
+        value = getExponentialRampToValueAtTime(time, Math.max(1e-6, defaultValue), e0.args[0], 0, e0.args[1]);
+      }
+    } else {
+      if (time < e0.time) {
+        break;
+      }
+
+      switch (e0.type) {
+      case SET_VALUE_AT_TIME:
+      case LINEAR_RAMP_TO_VALUE_AT_TIME:
+      case EXPONENTIAL_RAMP_TO_VALUE_AT_TIME:
+        value = e0.args[0];
+        break;
+      case SET_TARGET_AT_TIME:
+        value = getTargetValueAtTime(t0, value, e0.args[0], e0.args[1], e0.args[2]);
+        break;
+      case SET_VALUE_CURVE_AT_TIME:
+        value = getValueCurveAtTime(t0, e0.args[0], e0.args[1], e0.args[2]);
+        break;
+      }
     }
 
-    switch (e0.type) {
-    case SET_VALUE_AT_TIME:
-    case LINEAR_RAMP_TO_VALUE_AT_TIME:
-    case EXPONENTIAL_RAMP_TO_VALUE_AT_TIME:
-      value = e0.args[0];
-      break;
-    case SET_TARGET_AT_TIME:
-      value = getTargetValueAtTime(t0, value, e0.args[0], e0.args[1], e0.args[2]);
-      break;
-    case SET_VALUE_CURVE_AT_TIME:
-      value = getValueCurveAtTime(t0, e0.args[0], e0.args[1], e0.args[2]);
-      break;
-    }
     if (e1) {
+      // a value curve occupies [time, time + duration], so the next ramp
+      // starts at its end time; every other event hands over at its own time
+      const startTime = e0.type === SET_VALUE_CURVE_AT_TIME ? e0.args[1] + e0.args[2] : e0.time;
+
       switch (e1.type) {
       case LINEAR_RAMP_TO_VALUE_AT_TIME:
-        value = getLinearRampToValueAtTime(t0, value, e1.args[0], e0.time, e1.args[1]);
+        value = getLinearRampToValueAtTime(t0, value, e1.args[0], startTime, e1.args[1]);
         break;
       case EXPONENTIAL_RAMP_TO_VALUE_AT_TIME:
-        value = getExponentialRampToValueAtTime(t0, value, e1.args[0], e0.time, e1.args[1]);
+        value = getExponentialRampToValueAtTime(t0, value, e1.args[0], startTime, e1.args[1]);
         break;
       }
     }

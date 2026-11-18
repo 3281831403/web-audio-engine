@@ -170,6 +170,20 @@ const AudioParamDSP = {
       //         |<-------------->|        |                quantumEndFrame
       //         |                |        quantumStartFrame
       //         startFrame       endFrame
+      // the previous event has already ended and this event starts later,
+      // so hold the current value until its startFrame
+      if (quantumStartFrame + writeIndex < startFrame) {
+        const fillFrames = Math.min(blockSize - writeIndex, startFrame - quantumStartFrame - writeIndex);
+
+        for (let i = 0; i < fillFrames; i++) {
+          output[writeIndex++] = value;
+        }
+
+        if (writeIndex >= blockSize) {
+          break;
+        }
+      }
+
       // skip event if
       // (endFrame < quantumStartFrame): past event
       //  or

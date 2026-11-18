@@ -6,10 +6,16 @@ const assert = require("assert");
 const np = require("../../helpers/np");
 const paramTester = require("../../helpers/paramTester");
 const AudioContext = require("../../../src/impl/AudioContext");
+const AudioParam = require("../../../src/impl/AudioParam");
 const AudioNode = require("../../../src/impl/AudioNode");
 const GainNode = require("../../../src/impl/GainNode")
+const { AUDIO_RATE } = require("../../../src/constants/AudioParamRate");
 
 const context = new AudioContext({ sampleRate: 8000, blockSize: 16 });
+
+function closeTo(a, b, delta) {
+  return Math.abs(a - b) <= delta;
+}
 
 describe("AudioParam", () => {
   //               +-------------------+
@@ -100,6 +106,109 @@ describe("AudioParam", () => {
 
     assert(param.hasSampleAccurateValues() === true);
     assert.deepEqual(actual, expected);
+  });
+});
+
+describe("hold segment", () => {
+  let param;
+
+  beforeEach(() => {
+    param = new AudioParam(context, { rate: AUDIO_RATE, defaultValue: 0 });
+  });
+
+  function render(param, blocks) {
+    const result = new Float32Array(blocks * 16);
+
+    for (let i = 0; i < blocks; i++) {
+      context.currentSampleFrame = i * 16;
+      param.dspProcess();
+      result.set(param.getSampleAccurateValues(), i * 16);
+    }
+
+    return result;
+  }
+
+  it("holds the end value of a linear ramp until the next event", () => {
+    // ramp 0 -> 1 over [0, 0.1s), then hold 1 until setValueAtTime(0.25, 0.3s)
+    param.setValueAtTime(0, 0);
+    param.linearRampToValueAtTime(1, 0.1);
+    param.setValueAtTime(0.25, 0.3);
+
+    const out = render(param, 200);
+    const at = (t) => out[Math.round(t * 8000)];
+
+    assert(closeTo(at(0.05), 0.5, 1e-3));
+    assert(closeTo(at(0.1), 1.0, 1e-3));
+    assert(closeTo(at(0.2), 1.0, 1e-3));
+    assert(closeTo(at(0.299), 1.0, 1e-3));
+    assert(closeTo(at(0.3), 0.25, 1e-3));
+    assert(closeTo(at(0.35), 0.25, 1e-3));
+  });
+
+  it("holds the end value of an exponential ramp until the next event", () => {
+    param.setValueAtTime(0.01, 0);
+    param.exponentialRampToValueAtTime(1, 0.1);
+    param.setValueAtTime(0.25, 0.3);
+
+    const out = render(param, 200);
+    const at = (t) => out[Math.round(t * 8000)];
+
+    assert(closeTo(at(0.1), 1.0, 1e-2));
+    assert(closeTo(at(0.2), 1.0, 1e-3));
+    assert(closeTo(at(0.299), 1.0, 1e-3));
+    assert(closeTo(at(0.3), 0.25, 1e-3));
+  });
+
+  it("holds the last curve value until the next event", () => {
+    const curve = new Float32Array([ 0, 0.5, 1 ]);
+
+    param.setValueCurveAtTime(curve, 0, 0.1);
+    param.setValueAtTime(0.25, 0.3);
+
+    const out = render(param, 200);
+    const at = (t) => out[Math.round(t * 8000)];
+
+    assert(closeTo(at(0.1), 1.0, 1e-2));
+    assert(closeTo(at(0.2), 1.0, 1e-3));
+    assert(closeTo(at(0.299), 1.0, 1e-3));
+    assert(closeTo(at(0.3), 0.25, 1e-3));
+  });
+
+  it("a first-event linear ramp starts from the current .value", () => {
+    param.setValue(0);
+    param.linearRampToValueAtTime(1, 0.1);
+
+    const out = render(param, 60);
+    const at = (t) => out[Math.round(t * 8000)];
+
+    assert(closeTo(at(0), 0, 1e-3));
+    assert(closeTo(at(0.025), 0.25, 1e-2));
+    assert(closeTo(at(0.05), 0.5, 1e-2));
+    assert(closeTo(at(0.075), 0.75, 1e-2));
+    assert(closeTo(at(0.1), 1.0, 1e-2));
+  });
+
+  it("a first-event exponential ramp starts from the current .value", () => {
+    param.setValue(0.01);
+    param.exponentialRampToValueAtTime(1, 0.1);
+
+    const out = render(param, 60);
+    const at = (t) => out[Math.round(t * 8000)];
+
+    assert(closeTo(at(0), 0.01, 1e-3));
+    assert(closeTo(at(0.1), 1.0, 1e-2));
+  });
+
+  it("keeps getEvents() shape unchanged", () => {
+    param.setValue(0);
+    param.linearRampToValueAtTime(1, 0.1);
+
+    const events = param.getEvents();
+
+    assert(events.length === 1);
+    assert(events[0].type === "linearRampToValueAtTime");
+    assert(events[0].time === 0.1);
+    assert.deepEqual(events[0].args, [ 1, 0.1 ]);
   });
 });
 

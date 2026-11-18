@@ -54,4 +54,39 @@ describe("utils/AudioParamUtils.computeValueAtTime(timeline: object[], time: num
     assert(closeTo(AudioParamUtils.computeValueAtTime(timeline, 0.95, 0), 0.5000, 1e-4));
     assert(closeTo(AudioParamUtils.computeValueAtTime(timeline, 1.00, 0), 0.0000, 1e-4));
   });
+
+  it("ramps from the current value when the first event is a linear ramp", () => {
+    const timeline = [
+      { type: LINEAR_RAMP_TO_VALUE_AT_TIME, time: 1.0, args: [ 1.0, 1.0 ] }
+    ];
+
+    assert(AudioParamUtils.computeValueAtTime(timeline, 0.0, 0) === 0.0);
+    assert(closeTo(AudioParamUtils.computeValueAtTime(timeline, 0.25, 0), 0.25, 1e-4));
+    assert(closeTo(AudioParamUtils.computeValueAtTime(timeline, 0.5, 0), 0.5, 1e-4));
+    assert(closeTo(AudioParamUtils.computeValueAtTime(timeline, 0.75, 0), 0.75, 1e-4));
+    assert(closeTo(AudioParamUtils.computeValueAtTime(timeline, 1.0, 0), 1.0, 1e-4));
+  });
+
+  it("ramps from the current value when the first event is an exponential ramp", () => {
+    const timeline = [
+      { type: EXPONENTIAL_RAMP_TO_VALUE_AT_TIME, time: 0.1, args: [ 1.0, 0.1 ] }
+    ];
+
+    assert(closeTo(AudioParamUtils.computeValueAtTime(timeline, 0.0, 0.01), 0.01, 1e-4));
+    assert(closeTo(AudioParamUtils.computeValueAtTime(timeline, 0.1, 0.01), 1.0, 1e-4));
+  });
+
+  it("anchors a following ramp at the end of a value curve", () => {
+    const curve = new Float32Array([ 0, 0.5, 1 ]);
+    const timeline = [
+      { type: SET_VALUE_CURVE_AT_TIME, time: 0.0, args: [ curve, 0.0, 0.1 ] },
+      { type: LINEAR_RAMP_TO_VALUE_AT_TIME, time: 0.5, args: [ 0.0, 0.5 ] }
+    ];
+
+    // the curve ends at 0.1 with value 1; the following ramp spans (0.1, 0.5]
+    assert(closeTo(AudioParamUtils.computeValueAtTime(timeline, 0.1, 0), 1.0, 1e-4));
+    assert(closeTo(AudioParamUtils.computeValueAtTime(timeline, 0.2, 0), 0.75, 1e-4));
+    assert(closeTo(AudioParamUtils.computeValueAtTime(timeline, 0.3, 0), 0.5, 1e-4));
+    assert(closeTo(AudioParamUtils.computeValueAtTime(timeline, 0.5, 0), 0.0, 1e-4));
+  });
 });

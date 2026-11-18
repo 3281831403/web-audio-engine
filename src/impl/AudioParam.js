@@ -135,7 +135,7 @@ class AudioParam {
       args: [ value, endTime ],
       startFrame: 0,
       endFrame: Math.round(endTime * this.sampleRate),
-      startValue: this._defaultValue,
+      startValue: this._userValue,
       endValue: value
     };
     const index = this.insertEvent(eventItem);
@@ -189,7 +189,7 @@ class AudioParam {
       args: [ value, endTime ],
       startFrame: 0,
       endFrame: Math.round(endTime * this.sampleRate),
-      startValue: Math.max(1e-6, this._defaultValue),
+      startValue: Math.max(1e-6, this._userValue),
       endValue: value
     };
     const index = this.insertEvent(eventItem);
@@ -326,7 +326,7 @@ class AudioParam {
       switch (nextEventItem.type) {
       case LINEAR_RAMP_TO_VALUE_AT_TIME:
       case EXPONENTIAL_RAMP_TO_VALUE_AT_TIME:
-        nextEventItem.startFrame = eventItem.startFrame;
+        nextEventItem.startFrame = eventItem.endFrame;
         nextEventItem.startValue = eventItem.endValue;
         break;
       }
